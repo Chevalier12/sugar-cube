@@ -32,24 +32,65 @@ as a sprite.
 
 ## How much it took to get here
 
-This app is the one thing that worked after a long run of things that did not. The short version:
+This app is the one thing that worked at the end of a very long list of things that did not. From late October to
+early November 2026, almost every day ended in a dead end. Here is that list, roughly in order.
 
-- **Dressing the sprites directly.** An image model (ChatGPT) asked to put a tunic on a walk cycle frame by frame drew a
-  different tunic in every frame. Giving it all nine frames in one 3x3 grid kept the tunic the same, but it redrew the
-  body and the face too, and it never kept the pixel grid it was given.
-- **Painting textures for a 3D body.** We tried painting the skin of a MakeHuman body by having ChatGPT and PixelLab
-  repaint its texture map (the body cut open and laid flat). ChatGPT painted the face upright on a head piece that lies
-  sideways, so the eyes landed on the cheeks. PixelLab drew an outline round every piece of the map, and on the body
-  every outline became a red seam down the back and round the knees.
-- **The Meshy texture.** A Meshy model's texture is hundreds of small scraps in no order. PixelLab could not tell which
-  scrap was which and painted eyes on the back and on the forehead.
-- **A shape from the pattern alone.** We even tried rebuilding a body only from its texture layout, like sewing a plush
-  toy from its pattern and inflating it. A recognisable little person came out, but 23 to 26 cm away from the real body
-  on average: MakeHuman's pattern stretches up to 50% inside a single piece.
-- **What worked: one cube per pixel.** Seen straight from the front, a voxel model already *is* pixel art: one cube is
-  one pixel. So the four side views (front, left, back, right) go to PixelLab side by side on one 512 x 512 picture, at
-  their real size, with nothing scaled. PixelLab is at its best there, kept every figure in place, and its pixels go back
-  onto the cubes one to one, with no seams and nothing to guess.
+**Making the characters move**
+
+- **Text-to-motion (ARDY, Kimodo).** Asked for a low obstacle, it jumped; asked to go "over a box", it climbed a 2.5 m
+  wall in almost every seed. Text alone never put the jump on the box, and ARDY ships no training code.
+- **MotionBricks, fine-tuned ("Recipe D").** Our own primitives, a ghost, target poses. It ruined the idles.
+- **Looping idles with a generated seam.** It actually looked good, and it was dropped with the rest of the machine
+  learning route. What stayed: **RGBMoCap**, motion capture from ordinary video, the one tool that worked well.
+
+**Making 3D look like 2D**
+
+- **Rendering 3D to sprites, the Dead Cells way,** then a live anime look in Godot: 3-band shading, 2x pixels, 10 fps
+  stepped animation. Judged: the baked sprite scene looked terrible; the model had to stay 3D in the game.
+- **A "sprite oracle".** A VRoid model shaped and coloured until it matched the PixelLab sprite from the same view.
+  The body got within about 10%, the face never did: a face does not survive at 18 pixels wide. Abandoned.
+- **A Blender pixel filter** (scale down, pixelate, scale up), tried on a chair and then on the characters. Another
+  step, not the answer.
+- **A Genshin-style shader** on VRoid characters, kept as an extra look behind a key.
+- **A voxel woman from a single sprite.** Height from a normal map, front plus back, then our own rewrite of ISOMER
+  from 8 views, then a MakeHuman body fitted to the outlines. Filters, cel shading and painted looks were all rejected.
+
+**Bodies**
+
+- **VRoid bodies with home-made morph sliders** (183 zone morphs plus bone sliders). Slimming pushed the skin through the clothes.
+- **MakeHuman** became the base body, then **11 fixed body types** instead of sliders, then back to sliders on a
+  **low-poly MakeHuman** with every main slider working in the game.
+- **Free asset packs.** Quaternius only offers superhero bodies for free (even the baby looked like a bodybuilder);
+  City People has the clothes modelled into the bodies.
+
+**Clothes**
+
+- **Fitting Meshy garments by measurement** onto the bodies, then **MetaTailor**, then **our own MetaTailor replacement**
+  (Croitor). The walk still looked worse than MetaTailor's.
+- **Cloak physics**: SoftBody, SpringBone, a GPU cloth simulator. After a day of clipping, physics was taken out of the
+  game entirely until there is a good solution.
+- **Clothes on the 2D sprites instead**: FLUX.2 klein in ComfyUI on a 6 GB card, then ChatGPT frame by frame (a
+  different tunic in every frame), then ChatGPT on a whole 3x3 grid (the same tunic, but the body and face redrawn,
+  and never the pixel grid it was given).
+
+**Textures**
+
+- **Painting the 3D body's texture map** with ChatGPT and PixelLab. ChatGPT painted the face upright on a head piece
+  that lies sideways, so the eyes landed on the cheeks. PixelLab drew an outline round every piece of the map, and on
+  the body every outline became a red seam down the back and round the knees.
+- **The Meshy texture.** Hundreds of small scraps in no order. PixelLab painted eyes on the back and on the forehead.
+- **A body rebuilt from its texture pattern alone,** like sewing and inflating a plush toy. A little person came out,
+  23 to 26 cm away from the real body on average.
+
+**Engines, on the way**
+
+- **An Unreal port**, designed and dropped. **Godot embedded as a library** (LibGodot), started and abandoned
+  mid-build for lack of time.
+
+**What finally worked: one cube per pixel.** Seen straight from the front, a voxel model already *is* pixel art: one
+cube is one pixel. So the four side views (front, left, back, right) go to PixelLab side by side on one 512 x 512
+picture, at their real size, with nothing scaled. PixelLab is at its best there, kept every figure in place, and its
+pixels go back onto the cubes one to one, with no seams and nothing to guess.
 
 That last step was done by hand once, on one character, with a pile of scripts. Sugar Cube makes it a few clicks, so
 anyone can do it.
