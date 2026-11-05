@@ -64,6 +64,8 @@ public sealed class MainWindow : Window
     readonly Slider tiltSlider = new() { Minimum = -30, Maximum = 85, Width = 110, VerticalAlignment = VerticalAlignment.Center };
     readonly TextBlock tiltLabel = new() { Width = 40, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 };
     bool syncingAngle;
+    int viewHeightPx = 600;
+    readonly TextBlock spriteInfo = new() { Foreground = new SolidColorBrush(Color.Parse("#9AA3B5")), TextWrapping = TextWrapping.Wrap, FontSize = 13 };
     readonly CheckBox outlineBox = new() { Content = "Outline", IsChecked = false, VerticalAlignment = VerticalAlignment.Center };
     const float MinTilt = -30 * MathF.PI / 180, MaxTilt = 85 * MathF.PI / 180;
 
@@ -101,7 +103,7 @@ public sealed class MainWindow : Window
         steps.Children.Add(Step("3", "PixelLab", Hint("Save the picture (512 x 512, the 4 views). On pixellab.ai, edit it with the prompt below (about 25 generations), download the result and load it here."),
             canvasBtn, Row(copyBtn, link), PromptBox(), resultBtn, repaintInfo));
         steps.Children.Add(Step("4", "Cube size", sizeLabel, sizeSlider, litSwitch));
-        steps.Children.Add(Step("5", "Export", eightBox, Row(glbBtn, spritesBtn)));
+        steps.Children.Add(Step("5", "Export", spriteInfo, eightBox, Row(glbBtn, spritesBtn)));
 
         var left = new Border { Width = 400, Background = Bg, Child = new ScrollViewer { Content = steps } };
         viewport = new Border
@@ -227,6 +229,22 @@ public sealed class MainWindow : Window
         syncingAngle = false;
         angleLabel.Text = $"{deg:0}° ({name})";
         tiltLabel.Text = $"{tilt:0}°";
+    }
+
+    /// <summary>Metres per screen pixel at the model's centre in the 3D view right now: sprites are drawn at this scale,
+    /// so they look like the view (zoom out to make them smaller and more sprite-like).</summary>
+    float ViewPixel()
+    {
+        if (shownGrid == null) return 0.01f;
+        float dist = shownGrid.Ny * shownGrid.Cube * 1.9f * zoom;
+        return 2 * dist * MathF.Tan(0.55f / 2) / viewHeightPx;
+    }
+
+    void ShowSpriteInfo()
+    {
+        if (shownGrid == null) { spriteInfo.Text = ""; return; }
+        float px = ViewPixel(), tall = shownGrid.Ny * shownGrid.Cube / px;
+        spriteInfo.Text = $"Sprites are drawn as the view shows the model now: about {tall:0} px tall ({px / shownGrid.Cube:0.#} cubes per pixel). Zoom out for smaller, more sprite-like sprites.";
     }
 
     /// <summary>Zoom is how far the camera is (1 = the model fills the view); shown as a percent, 100% / distance.</summary>
@@ -413,8 +431,9 @@ public sealed class MainWindow : Window
         var (g, faces) = (shownGrid, shownFaces);
         bool eight = eightBox.IsChecked == true, lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true;
         string name = Path.GetFileNameWithoutExtension(pipe.ModelPath) + $"_{g.Ny}";
-        string sheet = await Task.Run(() => Export.Sprites(faces, g.Cube, folder, name, eight, lit, outline));
-        Say($"Saved: {(eight ? 8 : 4)} sprites and the sprite sheet {sheet}.");
+        float pixel = ViewPixel();
+        string sheet = await Task.Run(() => Export.Sprites(faces, pixel, g.Cube, folder, name, eight, lit, outline));
+        Say($"Saved: {(eight ? 8 : 4)} sprites, {g.Ny * g.Cube / pixel:0} px tall as in the view, and the sprite sheet {sheet}.");
     }
 
     // ---------------------------------------------------------------- files
@@ -458,11 +477,13 @@ public sealed class MainWindow : Window
     void Redraw()
     {
         ShowAngle();
+        ShowSpriteInfo();
         if (shownFaces == null) return;
         if (rendering) { renderAgain = true; return; }
         rendering = true;
         var bounds = (view.Parent as Control)?.Bounds ?? Bounds;
         int w = Math.Max(64, (int)bounds.Width), h = Math.Max(64, (int)bounds.Height);
+        viewHeightPx = h;
         var faces = shownFaces; var g = shownGrid; bool lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true; var bg = viewBg;
         float y = yaw, p = pitch, z = zoom;
         Task.Run(() =>
@@ -503,6 +524,15 @@ public sealed class MainWindow : Window
         if (Program.Arg("--zoom") is string zArg) SetZoom(float.Parse(zArg, System.Globalization.CultureInfo.InvariantCulture));
         if (Program.Flag("--spin")) spinBtn.IsChecked = true;
         if (Program.Flag("--outline")) outlineBox.IsChecked = true;
+        if (Program.Arg("--export-sprites") is string exDir && pipe.Grid != null)
+        {
+            await Task.Delay(800);  // let the view take its size: the sprites use its scale
+            var (eg, ef) = (shownGrid, shownFaces);
+            float pixel = ViewPixel();
+            bool eight = eightBox.IsChecked == true, lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true;  // read on the UI thread
+            string sheet = await Task.Run(() => Export.Sprites(ef, pixel, eg.Cube, exDir, Path.GetFileNameWithoutExtension(pipe.ModelPath), eight, lit, outline));
+            Say($"sprites {eg.Ny * eg.Cube / pixel:0} px tall: {sheet}");
+        }
         if (Program.Arg("--angle") is string aArg) angleSlider.Value = double.Parse(aArg, System.Globalization.CultureInfo.InvariantCulture);
         if (Program.Arg("--tilt") is string tArg) tiltSlider.Value = double.Parse(tArg, System.Globalization.CultureInfo.InvariantCulture);
         if (Program.Arg("--shot") is string shot)

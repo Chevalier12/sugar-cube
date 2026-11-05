@@ -8,7 +8,7 @@ Sugar Cube takes a textured 3D model (for example one made by Meshy from your Pi
 hands four views of those cubes to PixelLab to repaint as real pixel art, and puts every painted pixel back onto the
 cube it came from. Then you pick the cube size with a slider and export a `.glb` or a sprite sheet in 8 directions.
 
-![The 8 sprites Sugar Cube exported, one cube per pixel, with the outline on](docs/sprites.png)
+![The 8 sprites Sugar Cube exported: 465 cubes tall, cube size one step up, zoomed out to 25%, outline on, no lighting](docs/sprites.png)
 
 > **Sprite or voxel: it depends on the zoom.** The model looks like a sprite when you zoom out until it is about the
 > size of the original sprite on screen, so that one cube is roughly one screen pixel. The closer you zoom in, the more
@@ -114,8 +114,11 @@ anyone can do it.
    view up again by itself if PixelLab moved a figure, and cubes none of the views can see (top of the head, soles,
    inner arms) take the colour of the nearest painted cube.
 4. **Cube size.** A slider merges the cubes 2 x 2 x 2, 3 x 3 x 3 and so on up to 20 x 20 x 20, live.
-5. **Export.** *.glb* writes the cubes at the chosen size (one colour per face). *Sprites* writes 8 (or 4) pictures,
-   one cube per pixel, plus a one-row sprite sheet and a `.txt` with the order.
+5. **Export.** *.glb* writes the cubes at the chosen size (one colour per face). *Sprites* writes 8 (or 4) pictures
+   drawn exactly as the 3D view shows the model at that moment, so the zoom sets their size: zoom out for small,
+   sprite-like pictures. It also writes a one-row sprite sheet and a `.txt` with the order and the scale. The sprites
+   above were made with 465 cubes, the cube-size slider one step from the left, the view at 25%, outline on and
+   lighting off.
 
 Above the 3D view: zoom (with the percent), the camera's angle round the model (with the PixelLab direction it shows)
 and its tilt, slow turning with a speed, a 1 px outline (also used by the sprite export), and the background colour.
@@ -127,7 +130,7 @@ and its tilt, slow turning with a speed, a 1 px outline (also used by the sprite
 Every step also runs without the window, for tests and batches:
 
     SugarCube --model M.glb [--turn 1] [--cubes 465] [--canvas OUT.png] [--result PIXELLAB.png] [--size 4]
-              [--glb OUT.glb] [--sprites FOLDER] [--four] [--lit] [--outline] [--shot WINDOW.png]
+              [--glb OUT.glb] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--shot WINDOW.png]
 
 ## Build
 

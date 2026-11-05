@@ -28,14 +28,14 @@ public static class Export
 
     /// <summary>The 8 (or 4) sprites, each its own PNG, plus a sheet with all of them in one row on equal cells
     /// (bottoms aligned, so the feet stay at the same height). Returns the sheet's path.</summary>
-    public static string Sprites(IReadOnlyList<VoxelGrid.Face> faces, float cube, string folder, string name, bool eight, bool lit, bool outline = false)
+    public static string Sprites(IReadOnlyList<VoxelGrid.Face> faces, float pixel, float cube, string folder, string name, bool eight, bool lit, bool outline = false)
     {
         Directory.CreateDirectory(folder);
         var dirs = eight ? Render.Directions : Render.Directions.Where((_, i) => i % 2 == 0).ToArray();
         var pics = new List<Picture>();
         foreach (var (dname, from) in dirs)
         {
-            var p = Render.Sprite(faces, cube, from, lit, outline);
+            var p = Render.Sprite(faces, pixel, from, lit, outline);
             p.Save(Path.Combine(folder, $"{name}_{dname}.png"));
             pics.Add(p);
         }
@@ -52,7 +52,7 @@ public static class Export
         sheet.Save(sheetPath);
         File.WriteAllText(Path.Combine(folder, $"{name}_spritesheet.txt"),
             $"{pics.Count} frames in one row, each cell {cw}x{ch} px, in this order: {string.Join(", ", dirs.Select(d => d.Name))}\n" +
-            $"one pixel = one {cube * 100:0.##} cm cube\n");
+            $"one pixel = {pixel * 100:0.##} cm = {pixel / cube:0.##} cubes of {cube * 100:0.##} cm\n");
         return sheetPath;
     }
 }

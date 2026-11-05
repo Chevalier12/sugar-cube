@@ -119,9 +119,10 @@ public static class Render
         ("north", new(0, 0, -1)), ("north-west", new(1, 0, -1)), ("west", new(1, 0, 0)), ("south-west", new(1, 0, 1)),
     };
 
-    /// <summary>One sprite: the model seen level from one side, orthographic, ONE CUBE PER PIXEL, transparent
-    /// background, 2 px of air round it. On the 4 straight sides the pixel grid falls exactly on the cube grid.</summary>
-    public static Picture Sprite(IReadOnlyList<VoxelGrid.Face> faces, float cube, Vector3 from, bool lit, bool outline = false)
+    /// <summary>One sprite: the model seen level from one side, orthographic, <paramref name="pixel"/> metres per pixel
+    /// (the cube size gives one cube per pixel; a bigger value is the model seen from further away, each pixel taking
+    /// the colour of the cube at its centre, as the 3D view does), transparent background, 2 px of air round it.</summary>
+    public static Picture Sprite(IReadOnlyList<VoxelGrid.Face> faces, float pixel, Vector3 from, bool lit, bool outline = false)
     {
         from = Vector3.Normalize(from);
         Vector3 fwd = -from, right = Vector3.Normalize(Vector3.Cross(fwd, Vector3.UnitY)), up = Vector3.UnitY;
@@ -133,13 +134,13 @@ public static class Render
                 minR = MathF.Min(minR, r); maxR = MathF.Max(maxR, r); minU = MathF.Min(minU, u); maxU = MathF.Max(maxU, u);
             }
         const int pad = 2;
-        int w = (int)MathF.Ceiling((maxR - minR) / cube - 1e-3f) + 2 * pad, h = (int)MathF.Ceiling((maxU - minU) / cube - 1e-3f) + 2 * pad;
+        int w = (int)MathF.Ceiling((maxR - minR) / pixel - 1e-3f) + 2 * pad, h = (int)MathF.Ceiling((maxU - minU) / pixel - 1e-3f) + 2 * pad;
         // the picture's centre in (right, up), so its left and top edges lie on the cube grid
-        float left = minR - pad * cube, top = maxU + pad * cube;
+        float left = minR - pad * pixel, top = maxU + pad * pixel;
         var cam = new Camera
         {
-            Ortho = true, Eye = from * 100f, Target = Vector3.Zero, OrthoHeight = h * cube,
-            OrthoShift = new Vector2(left + w * cube / 2 - Vector3.Dot(from * 100f, right), top - h * cube / 2 - Vector3.Dot(from * 100f, up)),
+            Ortho = true, Eye = from * 100f, Target = Vector3.Zero, OrthoHeight = h * pixel,
+            OrthoShift = new Vector2(left + w * pixel / 2 - Vector3.Dot(from * 100f, right), top - h * pixel / 2 - Vector3.Dot(from * 100f, up)),
         };
         return Draw(faces, cam, w, h, lit, (0, 0, 0, 0), outline);
     }
