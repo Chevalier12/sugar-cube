@@ -283,7 +283,7 @@ public sealed class MainWindow : Window
         if (shownGrid == null) { spriteInfo.Text = ""; return; }
         int tall = SpriteHeight;
         float cubesPerPixel = shownGrid.Ny / (float)tall;
-        spriteInfo.Text = $"Sprites will be {tall} px tall: one sprite pixel covers {cubesPerPixel:0.##} cubes of this size. " +
+        spriteInfo.Text = $"Sprites will be {tall} px tall: one sprite pixel covers {cubesPerPixel:0.##} {(MathF.Abs(cubesPerPixel - 1) < 0.005f ? "cube" : "cubes")} of this size. " +
             $"In a game, show the model {tall} px tall on screen (one cube = {1 / cubesPerPixel:0.###} screen px) to get the same look. " +
             "Pixel preview (above the view) shows exactly this.";
     }
