@@ -168,3 +168,7 @@ Needs the .NET 8 SDK. Windows:
 [Avalonia](https://avaloniaui.net/) for the window, [SharpGLTF](https://github.com/vpenades/SharpGLTF) to read and write
 glTF, and [SkiaSharp](https://github.com/mono/SkiaSharp) for pictures. The 3D view and the sprites are drawn by a small
 software renderer in the app, so what you see is exactly what you export.
+
+## License
+
+[MIT](LICENSE). The libraries it uses keep their own licences (Avalonia, SharpGLTF and SkiaSharp are MIT too).
