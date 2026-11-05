@@ -128,7 +128,9 @@ anyone can do it.
    blocks of 256 that the file places side by side, and MagicaVoxel shows them together as one figure.
 
 Above the 3D view: zoom (with the percent), the camera's angle round the model (with the PixelLab direction it shows)
-and its tilt, slow turning with a speed, a 1 px outline (also used by the sprite export), and the background colour.
+and its tilt, slow turning with a speed, a 1 px outline, a toon slider (3 flat bands of light, mid and shadow, lit from
+the viewer's upper left, from 0 = off to 100% = full bands; the bands follow the smooth shape of the body, not each
+cube), and the background colour. The outline and the toon shading are used by the sprite export too.
 
 ![What was sent to PixelLab (left) and what came back (right)](docs/pixellab_before_after.png)
 
@@ -137,7 +139,7 @@ and its tilt, slow turning with a speed, a 1 px outline (also used by the sprite
 Every step also runs without the window, for tests and batches:
 
     SugarCube --model M.glb [--turn 1] [--cubes 465] [--canvas OUT.png] [--result PIXELLAB.png] [--size 4]
-              [--glb OUT.glb] [--vox OUT.vox] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--shot WINDOW.png]
+              [--glb OUT.glb] [--vox OUT.vox] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--toon 0-100] [--shot WINDOW.png]
 
 ## Build
 

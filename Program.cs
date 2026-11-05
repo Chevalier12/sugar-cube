@@ -7,7 +7,7 @@ namespace SugarCube;
 /// size, .glb and sprites. Without arguments it opens the window. With --model it can also run the steps from the
 /// command line (for tests and batches):
 ///   SugarCube --model M.glb [--turn 1] [--cubes 470] [--canvas OUT.png] [--result PIXELLAB.png] [--size 4]
-///               [--glb OUT.glb] [--vox OUT.vox] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--shot WINDOW.png]
+///               [--glb OUT.glb] [--vox OUT.vox] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--toon 0-100] [--shot WINDOW.png]
 /// --shot opens the window with those steps done, saves a picture of it and closes.</summary>
 public static class Program
 {
@@ -59,7 +59,8 @@ public static class Program
             {
                 // --sprite-height N: the model N pixels tall (seen from further away); default one cube per pixel
                 float pixel = Arg("--sprite-height") is string sh ? g.Ny * g.Cube / float.Parse(sh, System.Globalization.CultureInfo.InvariantCulture) : g.Cube;
-                string sheet = Export.Sprites(faces, pixel, g.Cube, dir, Path.GetFileNameWithoutExtension(p.ModelPath), !Flag("--four"), Flag("--lit"), Flag("--outline"));
+                string sheet = Export.Sprites(faces, pixel, g.Cube, dir, Path.GetFileNameWithoutExtension(p.ModelPath), !Flag("--four"), Flag("--lit"), Flag("--outline"),
+                    Arg("--toon") is string tn ? float.Parse(tn, System.Globalization.CultureInfo.InvariantCulture) / 100 : 0);
                 Console.WriteLine($"sprites: {sheet}");
             }
             return 0;

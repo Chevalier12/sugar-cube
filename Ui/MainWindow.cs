@@ -68,6 +68,8 @@ public sealed class MainWindow : Window
     int viewHeightPx = 600;
     readonly TextBlock spriteInfo = new() { Foreground = new SolidColorBrush(Color.Parse("#9AA3B5")), TextWrapping = TextWrapping.Wrap, FontSize = 13 };
     readonly CheckBox outlineBox = new() { Content = "Outline", IsChecked = false, VerticalAlignment = VerticalAlignment.Center };
+    readonly Slider toonSlider = new() { Minimum = 0, Maximum = 100, Value = 0, Width = 110, VerticalAlignment = VerticalAlignment.Center };
+    readonly TextBlock toonLabel = new() { Text = "off", Width = 36, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 };
     const float MinTilt = -30 * MathF.PI / 180, MaxTilt = 85 * MathF.PI / 180;
 
     float yaw = 0.45f, pitch = 0.12f, zoom = 1f; Vector2 pan;
@@ -160,6 +162,7 @@ public sealed class MainWindow : Window
         angleSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty && !syncingAngle) { yaw = (float)(angleSlider.Value * Math.PI / 180); Redraw(); } };
         tiltSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty && !syncingAngle) { pitch = (float)(tiltSlider.Value * Math.PI / 180); Redraw(); } };
         outlineBox.IsCheckedChanged += (_, _) => Redraw();
+        toonSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) { toonLabel.Text = toonSlider.Value < 0.5 ? "off" : $"{toonSlider.Value:0}%"; Redraw(); } };
         bgHex.LostFocus += (_, _) => ApplyHex();
         bgHex.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyHex(); };
         viewport.SizeChanged += (_, _) => Redraw();
@@ -187,7 +190,7 @@ public sealed class MainWindow : Window
         Group(new TextBlock { Text = "Zoom", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }, zoomOut, zoomLabel, zoomIn);
         Group(new TextBlock { Text = "Angle", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }, angleSlider, angleLabel,
               new TextBlock { Text = "Tilt", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }, tiltSlider, tiltLabel);
-        Group(outlineBox);
+        Group(outlineBox, new TextBlock { Text = "Toon", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13, Margin = new Thickness(10, 0, 0, 0) }, toonSlider, toonLabel);
         Group(spinBtn, new TextBlock { Text = "Speed", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }, spinSpeed, spinLabel);
         var swatches = new List<Control> { new TextBlock { Text = "Background", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 } };
         foreach (var hex in new[] { "#0F1116", "#3A3F4B", "#808080", "#FFFFFF", "#00B140", "#FF00FF" })
@@ -444,7 +447,8 @@ public sealed class MainWindow : Window
         bool eight = eightBox.IsChecked == true, lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true;
         string name = Path.GetFileNameWithoutExtension(pipe.ModelPath) + $"_{g.Ny}";
         float pixel = ViewPixel();
-        string sheet = await Task.Run(() => Export.Sprites(faces, pixel, g.Cube, folder, name, eight, lit, outline));
+        float toonAmount = (float)toonSlider.Value / 100;
+        string sheet = await Task.Run(() => Export.Sprites(faces, pixel, g.Cube, folder, name, eight, lit, outline, toonAmount));
         Say($"Saved: {(eight ? 8 : 4)} sprites, {g.Ny * g.Cube / pixel:0} px tall as in the view, and the sprite sheet {sheet}.");
     }
 
@@ -496,7 +500,7 @@ public sealed class MainWindow : Window
         var bounds = (view.Parent as Control)?.Bounds ?? Bounds;
         int w = Math.Max(64, (int)bounds.Width), h = Math.Max(64, (int)bounds.Height);
         viewHeightPx = h;
-        var faces = shownFaces; var g = shownGrid; bool lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true; var bg = viewBg;
+        var faces = shownFaces; var g = shownGrid; bool lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true; var bg = viewBg; float toon = (float)toonSlider.Value / 100;
         float y = yaw, p = pitch, z = zoom;
         Task.Run(() =>
         {
@@ -507,7 +511,7 @@ public sealed class MainWindow : Window
             {
                 Target = c, Eye = c + dist * new Vector3(MathF.Sin(y) * MathF.Cos(p), MathF.Sin(p), MathF.Cos(y) * MathF.Cos(p)), FovY = 0.55f,
             };
-            var pic = Core.Render.Draw(faces, cam, w, h, lit, (bg.R, bg.G, bg.B, 255), outline);
+            var pic = Core.Render.Draw(faces, cam, w, h, lit, (bg.R, bg.G, bg.B, 255), outline, toon);
             Dispatcher.UIThread.Post(() =>
             {
                 var bmp = new WriteableBitmap(new PixelSize(w, h), new Avalonia.Vector(96, 96), PixelFormat.Rgba8888, AlphaFormat.Unpremul);
@@ -536,13 +540,15 @@ public sealed class MainWindow : Window
         if (Program.Arg("--zoom") is string zArg) SetZoom(float.Parse(zArg, System.Globalization.CultureInfo.InvariantCulture));
         if (Program.Flag("--spin")) spinBtn.IsChecked = true;
         if (Program.Flag("--outline")) outlineBox.IsChecked = true;
+        if (Program.Arg("--toon") is string toonArg) toonSlider.Value = double.Parse(toonArg, System.Globalization.CultureInfo.InvariantCulture);
         if (Program.Arg("--export-sprites") is string exDir && pipe.Grid != null)
         {
             await Task.Delay(800);  // let the view take its size: the sprites use its scale
             var (eg, ef) = (shownGrid, shownFaces);
             float pixel = ViewPixel();
             bool eight = eightBox.IsChecked == true, lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true;  // read on the UI thread
-            string sheet = await Task.Run(() => Export.Sprites(ef, pixel, eg.Cube, exDir, Path.GetFileNameWithoutExtension(pipe.ModelPath), eight, lit, outline));
+            float toonAmount = (float)toonSlider.Value / 100;
+            string sheet = await Task.Run(() => Export.Sprites(ef, pixel, eg.Cube, exDir, Path.GetFileNameWithoutExtension(pipe.ModelPath), eight, lit, outline, toonAmount));
             Say($"sprites {eg.Ny * eg.Cube / pixel:0} px tall: {sheet}");
         }
         if (Program.Arg("--angle") is string aArg) angleSlider.Value = double.Parse(aArg, System.Globalization.CultureInfo.InvariantCulture);

@@ -18,10 +18,16 @@ public static class Render
 
     static readonly Vector3 Light = Vector3.Normalize(new Vector3(-0.45f, 0.75f, 0.55f));
 
+    /// <summary>Toon bands: brightness of the light, mid and shadow band, and where they change (normal . light).</summary>
+    public static readonly float[] ToonBands = { 1.0f, 0.78f, 0.56f };
+    const float ToonLightAbove = 0.55f, ToonMidAbove = 0.0f;
+
     /// <summary>Draws the faces into a w x h RGBA picture; background (r, g, b, a). With <paramref name="outline"/>,
     /// every background pixel touching the model (left, right, above, below) becomes a 1 px outline in a dark shade of
     /// the model's colour there.</summary>
-    public static Picture Draw(IReadOnlyList<VoxelGrid.Face> faces, Camera cam, int w, int h, bool lit, (byte r, byte g, byte b, byte a) bg, bool outline = false)
+    /// <para>With <paramref name="toon"/> above 0, faces are shaded in 3 flat bands (light, mid, shadow) by a light from
+    /// the viewer's upper left, mixed in by that amount (0 = flat colours, 1 = full bands); it replaces <paramref name="lit"/>.</para>
+    public static Picture Draw(IReadOnlyList<VoxelGrid.Face> faces, Camera cam, int w, int h, bool lit, (byte r, byte g, byte b, byte a) bg, bool outline = false, float toon = 0)
     {
         var pic = new Picture(w, h);
         for (int i = 0; i < w * h; i++) { pic.Data[i * 4] = bg.r; pic.Data[i * 4 + 1] = bg.g; pic.Data[i * 4 + 2] = bg.b; pic.Data[i * 4 + 3] = bg.a; }
@@ -31,6 +37,9 @@ public static class Render
         Vector3 right = Vector3.Normalize(Vector3.Cross(fwd, cam.Up));
         Vector3 up = Vector3.Cross(right, fwd);
         float f = 1f / MathF.Tan(cam.FovY / 2), aspect = (float)w / h;
+        // toon light: from the viewer's upper left, a little toward the viewer, so the faces turned to the camera are lit,
+        // the left sides mid and the right sides in shadow, whichever way the model is turned
+        Vector3 toonLight = Vector3.Normalize(-0.5f * right + 0.6f * up - 0.62f * fwd);
 
         // world -> (screen x, screen y, depth)
         Vector3 Project(Vector3 p)
@@ -51,7 +60,13 @@ public static class Render
             Vector3 toEye = cam.Ortho ? -fwd : cam.Eye - face.P0;
             if (Vector3.Dot(face.Normal, toEye) <= 0) continue;  // back face
             Vector3 c = face.Colour;
-            if (lit)
+            if (toon > 0)
+            {
+                float d = Vector3.Dot(face.Shade == Vector3.Zero ? face.Normal : face.Shade, toonLight);
+                float band = d > ToonLightAbove ? ToonBands[0] : d > ToonMidAbove ? ToonBands[1] : ToonBands[2];
+                c *= 1 + (band - 1) * toon;
+            }
+            else if (lit)
             {
                 float k = 0.6f + 0.4f * MathF.Max(0, Vector3.Dot(face.Normal, Light));
                 c *= k;
@@ -122,7 +137,7 @@ public static class Render
     /// <summary>One sprite: the model seen level from one side, orthographic, <paramref name="pixel"/> metres per pixel
     /// (the cube size gives one cube per pixel; a bigger value is the model seen from further away, each pixel taking
     /// the colour of the cube at its centre, as the 3D view does), transparent background, 2 px of air round it.</summary>
-    public static Picture Sprite(IReadOnlyList<VoxelGrid.Face> faces, float pixel, Vector3 from, bool lit, bool outline = false)
+    public static Picture Sprite(IReadOnlyList<VoxelGrid.Face> faces, float pixel, Vector3 from, bool lit, bool outline = false, float toon = 0)
     {
         from = Vector3.Normalize(from);
         Vector3 fwd = -from, right = Vector3.Normalize(Vector3.Cross(fwd, Vector3.UnitY)), up = Vector3.UnitY;
@@ -142,6 +157,6 @@ public static class Render
             Ortho = true, Eye = from * 100f, Target = Vector3.Zero, OrthoHeight = h * pixel,
             OrthoShift = new Vector2(left + w * pixel / 2 - Vector3.Dot(from * 100f, right), top - h * pixel / 2 - Vector3.Dot(from * 100f, up)),
         };
-        return Draw(faces, cam, w, h, lit, (0, 0, 0, 0), outline);
+        return Draw(faces, cam, w, h, lit, (0, 0, 0, 0), outline, toon);
     }
 }

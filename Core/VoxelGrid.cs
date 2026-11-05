@@ -288,12 +288,68 @@ public sealed class VoxelGrid
         return g;
     }
 
+    // ---------------------------------------------------------------- smooth surface directions
+
+    /// <summary>For every cube, the direction the body's surface faces there, as if the cubes were smooth: the solid body
+    /// (cubes plus the air sealed inside) is blurred with a box of <paramref name="radius"/> cubes, twice, along each
+    /// axis, and the direction is where that blurred density falls fastest. Toon bands use it, so a staircase of cubes on
+    /// a curved arm gets one band instead of stripes.</summary>
+    public Vector3[] SmoothNormals(bool[] outside, int radius)
+    {
+        int n = Nx * Ny * Nz;
+        var d = new float[n];
+        for (int k = 0; k < n; k++) d[k] = outside[k] ? 0 : 1;
+        var tmp = new float[n];
+        for (int pass = 0; pass < 2; pass++)
+        {
+            Blur(d, tmp, Nx, Ny * Nz, radius);           // along x: stride Ny * Nz
+            Blur(d, tmp, Ny, Nz, radius, alongY: true);  // along y: stride Nz
+            Blur(d, tmp, Nz, 1, radius);            // along z: stride 1
+        }
+        var normal = new Vector3[n];
+        float D(int x, int y, int z) => Inside(x, y, z) ? d[Index(x, y, z)] : 0;
+        for (int x = 0; x < Nx; x++) for (int y = 0; y < Ny; y++) for (int z = 0; z < Nz; z++)
+        {
+            int k = Index(x, y, z);
+            if (!Occ[k]) continue;
+            var g = new Vector3(D(x + 1, y, z) - D(x - 1, y, z), D(x, y + 1, z) - D(x, y - 1, z), D(x, y, z + 1) - D(x, y, z - 1));
+            if (g.LengthSquared() > 1e-12f) normal[k] = -Vector3.Normalize(g);
+        }
+        return normal;
+    }
+
+    /// <summary>A box blur of radius r along one axis of the grid, in place (running sums, so its cost does not grow with r).
+    /// The axis has <paramref name="len"/> cells <paramref name="stride"/> apart.</summary>
+    void Blur(float[] d, float[] tmp, int len, int stride, int r, bool alongY = false)
+    {
+        // every line along the axis: its first cell index
+        var starts = new List<int>();
+        if (stride == Ny * Nz) { for (int y = 0; y < Ny; y++) for (int z = 0; z < Nz; z++) starts.Add(Index(0, y, z)); }
+        else if (alongY) { for (int x = 0; x < Nx; x++) for (int z = 0; z < Nz; z++) starts.Add(Index(x, 0, z)); }
+        else { for (int x = 0; x < Nx; x++) for (int y = 0; y < Ny; y++) starts.Add(Index(x, y, 0)); }
+        float inv = 1f / (2 * r + 1);
+        foreach (int s0 in starts)
+        {
+            float sum = 0;
+            for (int i = 0; i <= Math.Min(r, len - 1); i++) sum += d[s0 + i * stride];
+            for (int i = 0; i < len; i++)
+            {
+                tmp[i] = sum * inv;
+                int add = i + r + 1, drop = i - r;
+                if (add < len) sum += d[s0 + add * stride];
+                if (drop >= 0) sum -= d[s0 + drop * stride];
+            }
+            for (int i = 0; i < len; i++) d[s0 + i * stride] = tmp[i];
+        }
+    }
+
     // ---------------------------------------------------------------- outer faces (for drawing and export)
 
     public struct Face
     {
         public Vector3 P0, P1, P2, P3;  // counter-clockwise seen from outside
         public Vector3 Normal;
+        public Vector3 Shade;           // the body's smooth surface direction here (for toon bands), not the cube's
         public Vector3 Colour;          // sRGB 0..1
     }
 
@@ -302,6 +358,7 @@ public sealed class VoxelGrid
     public List<Face> OuterFaces()
     {
         bool[] outside = Outside();
+        Vector3[] shade = SmoothNormals(outside, Math.Max(2, Ny / 60));
         var faces = new List<Face>();
         for (int x = 0; x < Nx; x++) for (int y = 0; y < Ny; y++) for (int z = 0; z < Nz; z++)
         {
@@ -321,7 +378,7 @@ public sealed class VoxelGrid
                 if (Vector3.Dot(Vector3.Cross(p1 - p0, p2 - p0), nrm) < 0) (p1, p3) = (p3, p1);
                 faces.Add(new Face
                 {
-                    P0 = p0, P1 = p1, P2 = p2, P3 = p3, Normal = nrm,
+                    P0 = p0, P1 = p1, P2 = p2, P3 = p3, Normal = nrm, Shade = shade[k] == Vector3.Zero ? nrm : shade[k],
                     Colour = FaceSet != null && FaceSet[d][k] ? FaceCol[d][k] : Col[k],
                 });
             }
