@@ -9,6 +9,8 @@ hands four views of those cubes to PixelLab to repaint as real pixel art, and pu
 cube it came from. Then you pick the cube size with a slider and export a `.glb`, a MagicaVoxel `.vox` or a sprite
 sheet in 8 directions.
 
+**[Download Sugar Cube for Windows](https://github.com/Chevalier12/sugar-cube/releases/latest)**: one `SugarCube.exe`, nothing to install.
+
 ![The 8 sprites Sugar Cube exported: 465 cubes tall, cube size one step up, zoomed out to 25%, outline on, no lighting](docs/sprites.png)
 
 > **Sprite or voxel: it depends on the zoom.** The model looks like a sprite when you zoom out until it is about the
