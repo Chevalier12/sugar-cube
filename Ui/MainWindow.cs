@@ -65,6 +65,15 @@ public sealed class MainWindow : Window
     readonly Slider tiltSlider = new() { Minimum = -30, Maximum = 85, Width = 110, VerticalAlignment = VerticalAlignment.Center };
     readonly TextBlock tiltLabel = new() { Width = 40, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 };
     bool syncingAngle;
+    ScrollViewer stepsScroll;
+    // step 3, other way: the 4 original sprites given to Meshy, straight onto the cubes (view order: south, west, north, east)
+    readonly CheckBox originalBox = new() { Content = "Use the original sprites you gave Meshy instead (free, no PixelLab)" };
+    readonly StackPanel originalPanel = new() { Spacing = 10, IsVisible = false };
+    readonly string[] slotPaths = new string[4];
+    readonly Image[] slotThumbs = new Image[4];
+    readonly TextBlock[] slotNames = new TextBlock[4];
+    readonly Button originalOk = Primary("OK");
+    readonly Button originalCancel = Secondary("Cancel");
     int viewHeightPx = 600;
     readonly TextBlock spriteInfo = new() { Foreground = new SolidColorBrush(Color.Parse("#9AA3B5")), TextWrapping = TextWrapping.Wrap, FontSize = 13 };
     readonly CheckBox outlineBox = new() { Content = "Outline", IsChecked = false, VerticalAlignment = VerticalAlignment.Center };
@@ -104,12 +113,12 @@ public sealed class MainWindow : Window
         var link = new Button { Content = "Open pixellab.ai", Classes = { "link" } };
         link.Click += (_, _) => OpenUrl("https://www.pixellab.ai");
         steps.Children.Add(Step("3", "PixelLab", Hint("Save the picture (512 x 512, the 4 views). On pixellab.ai, edit it with the prompt below (about 25 generations), download the result and load it here."),
-            canvasBtn, Row(copyBtn, link), PromptBox(), resultBtn, repaintInfo));
+            canvasBtn, Row(copyBtn, link), PromptBox(), resultBtn, originalBox, OriginalPanel(), repaintInfo));
         steps.Children.Add(Step("4", "Cube size", sizeLabel, sizeSlider, litSwitch));
         steps.Children.Add(Step("5", "Export", spriteInfo, eightBox, Row(glbBtn, spritesBtn), voxBtn,
             Hint("The .vox has one colour per cube (at most 255 colours) and the cube size chosen in step 4; above 256 cubes on a side it is cut into a few models that MagicaVoxel shows together.")));
 
-        var left = new Border { Width = 400, Background = Bg, Child = new ScrollViewer { Content = steps } };
+        var left = new Border { Width = 400, Background = Bg, Child = stepsScroll = new ScrollViewer { Content = steps } };
         viewport = new Border
         {
             Background = ViewBg, CornerRadius = new CornerRadius(14), Margin = new Thickness(0, 18, 18, 8), ClipToBounds = true,
@@ -274,6 +283,77 @@ public sealed class MainWindow : Window
         else Say("Background colour: write it as #RRGGBB, for example #808080.");
     }
 
+    /// <summary>The 4 drop boxes (South, North, East, West) with OK and Cancel, shown while the checkbox is on.</summary>
+    Control OriginalPanel()
+    {
+        originalPanel.Children.Add(Hint("Try the same 4 pictures you gave Meshy: drop each one in its box (or click the box), then press OK. " +
+            "The app fits each picture onto the cubes by itself and takes a dark outline off its edge (the Outline switch draws it again)."));
+        // boxes in the order the user thinks of them; each knows its view index (0 south, 1 west, 2 north, 3 east)
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), RowDefinitions = new RowDefinitions("Auto,Auto"), ColumnSpacing = 8, RowSpacing = 8 };
+        (string label, int view)[] boxes = { ("South (front)", 0), ("North (back)", 2), ("East", 3), ("West", 1) };
+        for (int i = 0; i < 4; i++)
+        {
+            var slot = Slot(boxes[i].label, boxes[i].view);
+            Grid.SetColumn(slot, i % 2); Grid.SetRow(slot, i / 2);
+            grid.Children.Add(slot);
+        }
+        originalPanel.Children.Add(grid);
+        originalPanel.Children.Add(Row(originalOk, originalCancel));
+        originalBox.IsCheckedChanged += (_, _) => { originalPanel.IsVisible = originalBox.IsChecked == true; };
+        originalOk.Click += async (_, _) => await ApplyOriginal();
+        originalCancel.Click += (_, _) => { for (int v = 0; v < 4; v++) SetSlot(v, null); originalBox.IsChecked = false; };
+        return originalPanel;
+    }
+
+    Control Slot(string label, int view)
+    {
+        var thumb = new Image { Height = 64, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center };
+        RenderOptions.SetBitmapInterpolationMode(thumb, Avalonia.Media.Imaging.BitmapInterpolationMode.None);
+        var name = new TextBlock { Text = "drop .png here", Foreground = Muted, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        slotThumbs[view] = thumb; slotNames[view] = name;
+        var stack = new StackPanel { Spacing = 4 };
+        stack.Children.Add(new TextBlock { Text = label, FontWeight = FontWeight.SemiBold, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Center });
+        stack.Children.Add(thumb); stack.Children.Add(name);
+        var border = new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#161A22")), BorderBrush = CardEdge, BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8), Padding = new Thickness(8), MinHeight = 110, Child = stack, Cursor = new Cursor(StandardCursorType.Hand),
+        };
+        DragDrop.SetAllowDrop(border, true);
+        border.AddHandler(DragDrop.DropEvent, (_, e) =>
+        {
+            var path = e.DataTransfer.TryGetFiles()?.FirstOrDefault()?.TryGetLocalPath();
+            e.Handled = true;  // the window's own drop (a model, a PixelLab picture) must not see it
+            if (path == null) return;
+            if (Path.GetExtension(path).ToLowerInvariant() is ".png" or ".webp" or ".jpg") SetSlot(view, path);
+            else Say($"{label}: drop a picture (.png), not a {Path.GetExtension(path)} file.");
+        });
+        border.PointerPressed += async (_, _) => { var f = await PickFile($"The {label} sprite", "Picture", "*.png", "*.webp", "*.jpg"); if (f != null) SetSlot(view, f); };
+        return border;
+    }
+
+    void SetSlot(int view, string path)
+    {
+        slotPaths[view] = path;
+        try { slotThumbs[view].Source = path == null ? null : new Avalonia.Media.Imaging.Bitmap(path); }
+        catch { slotThumbs[view].Source = null; Say($"Could not read {Path.GetFileName(path)}."); slotPaths[view] = null; }
+        slotNames[view].Text = slotPaths[view] == null ? "drop .png here" : Path.GetFileName(path);
+        SetEnabled();
+    }
+
+    async Task ApplyOriginal()
+    {
+        if (pipe.Grid == null || slotPaths.Any(p => p == null)) { Say("Drop all 4 sprites first: South, North, East and West."); return; }
+        Say("Putting the original sprites on the cubes…");
+        var p0 = slotPaths;
+        List<string> report;
+        try { report = await Task.Run(() => pipe.ApplySprites(p0[0], p0[1], p0[2], p0[3])); }
+        catch (Exception e) { Say("Could not use the sprites: " + e.Message); return; }
+        repaintInfo.Text = string.Join("\n", report);
+        await ShowSize();
+        Say("Done: the cubes have the colours of your original sprites. Move the size slider or export.");
+    }
+
     static Control Bullet(string mark, string text)
     {
         var g = new Grid { ColumnDefinitions = new ColumnDefinitions("22,*") };
@@ -332,6 +412,7 @@ public sealed class MainWindow : Window
         bool model = pipe.Model != null, grid = pipe.Grid != null;
         turnBtn.IsEnabled = model; cubesSlider.IsEnabled = model; voxelizeBtn.IsEnabled = model;
         canvasBtn.IsEnabled = grid && pipe.Grid.FitsCanvas; resultBtn.IsEnabled = grid && pipe.Grid.FitsCanvas;
+        originalBox.IsEnabled = grid; originalOk.IsEnabled = grid && slotPaths.All(p => p != null);
         sizeSlider.IsEnabled = grid; glbBtn.IsEnabled = grid; spritesBtn.IsEnabled = grid; voxBtn.IsEnabled = grid;
     }
 
@@ -540,6 +621,12 @@ public sealed class MainWindow : Window
         if (Program.Arg("--zoom") is string zArg) SetZoom(float.Parse(zArg, System.Globalization.CultureInfo.InvariantCulture));
         if (Program.Flag("--spin")) spinBtn.IsChecked = true;
         if (Program.Flag("--outline")) outlineBox.IsChecked = true;
+        if (Program.Arg("--south") is string so && Program.Arg("--west") is string we && Program.Arg("--north") is string no && Program.Arg("--east") is string ea)
+        {
+            originalBox.IsChecked = true;
+            SetSlot(0, so); SetSlot(1, we); SetSlot(2, no); SetSlot(3, ea);
+            await ApplyOriginal();
+        }
         if (Program.Arg("--toon") is string toonArg) toonSlider.Value = double.Parse(toonArg, System.Globalization.CultureInfo.InvariantCulture);
         if (Program.Arg("--export-sprites") is string exDir && pipe.Grid != null)
         {
@@ -560,6 +647,12 @@ public sealed class MainWindow : Window
             using var rtb = new RenderTargetBitmap(px);
             rtb.Render(this);
             rtb.Save(shot);
+            if (originalBox.IsChecked == true && originalPanel.Parent?.Parent is Control card)  // step 3's card alone, for checking
+            {
+                using var crt = new RenderTargetBitmap(new PixelSize((int)card.Bounds.Width, (int)card.Bounds.Height));
+                crt.Render(card);
+                crt.Save(Path.ChangeExtension(shot, null) + "_step3.png");
+            }
             Close();
         }
     }

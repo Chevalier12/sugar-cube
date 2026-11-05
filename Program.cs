@@ -6,7 +6,7 @@ namespace SugarCube;
 /// <summary>Sugar Cube: a textured 3D model -> cubes -> PixelLab repaints 4 views -> back on the cubes -> any cube
 /// size, .glb and sprites. Without arguments it opens the window. With --model it can also run the steps from the
 /// command line (for tests and batches):
-///   SugarCube --model M.glb [--turn 1] [--cubes 470] [--canvas OUT.png] [--result PIXELLAB.png] [--size 4]
+///   SugarCube --model M.glb [--turn 1] [--cubes 470] [--canvas OUT.png] [--result PIXELLAB.png | --south S.png --west W.png --north N.png --east E.png] [--size 4]
 ///               [--glb OUT.glb] [--vox OUT.vox] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--toon 0-100] [--shot WINDOW.png]
 /// --shot opens the window with those steps done, saves a picture of it and closes.</summary>
 public static class Program
@@ -48,6 +48,12 @@ public static class Program
                 t.Restart();
                 foreach (var line in p.ApplyRepaint(result)) Console.WriteLine("  " + line);
                 Console.WriteLine($"result applied ({t.ElapsedMilliseconds} ms)");
+            }
+            if (Arg("--south") is string so && Arg("--west") is string we && Arg("--north") is string no && Arg("--east") is string ea)
+            {
+                t.Restart();
+                foreach (var line in p.ApplySprites(so, we, no, ea)) Console.WriteLine("  " + line);
+                Console.WriteLine($"original sprites applied ({t.ElapsedMilliseconds} ms)");
             }
             int k = Arg("--size") is string s ? int.Parse(s) : 1;
             t.Restart();

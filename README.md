@@ -116,6 +116,12 @@ anyone can do it.
    Download the result and load it with *Load the PixelLab result* (or drop it onto the window). The app lines each
    view up again by itself if PixelLab moved a figure, and cubes none of the views can see (top of the head, soles,
    inner arms) take the colour of the nearest painted cube.
+   **Or skip PixelLab:** tick *Use the original sprites you gave Meshy instead*, drop the same 4 pictures into the
+   South, North, East and West boxes and press OK. It is free and keeps your sprites exactly as drawn. The app fits each
+   picture onto the cubes by itself (scale and position by the silhouette) and takes a dark outline off its edge first,
+   because an outline seen from the front would become a dark stripe along the body seen from 45 degrees; the Outline
+   switch draws it again round whatever angle is shown. Meshy's shape never matches the sprite exactly, so cubes the
+   picture does not cover take the colour of their neighbours.
 4. **Cube size.** A slider merges the cubes 2 x 2 x 2, 3 x 3 x 3 and so on up to 20 x 20 x 20, live.
 5. **Export.** *.glb* writes the cubes at the chosen size (one colour per face). *Sprites* writes 8 (or 4) pictures
    drawn exactly as the 3D view shows the model at that moment, so the zoom sets their size: zoom out for small,
@@ -138,7 +144,7 @@ cube), and the background colour. The outline and the toon shading are used by t
 
 Every step also runs without the window, for tests and batches:
 
-    SugarCube --model M.glb [--turn 1] [--cubes 465] [--canvas OUT.png] [--result PIXELLAB.png] [--size 4]
+    SugarCube --model M.glb [--turn 1] [--cubes 465] [--canvas OUT.png] [--result PIXELLAB.png | --south S.png --west W.png --north N.png --east E.png] [--size 4]
               [--glb OUT.glb] [--vox OUT.vox] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--toon 0-100] [--shot WINDOW.png]
 
 ## Build

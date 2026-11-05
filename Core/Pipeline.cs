@@ -45,6 +45,14 @@ public sealed class Pipeline
         return r;
     }
 
+    /// <summary>The 4 original sprites (south, west, north, east) straight onto the cubes, instead of PixelLab's picture.</summary>
+    public List<string> ApplySprites(string south, string west, string north, string east)
+    {
+        var r = Grid.ApplySprites(new[] { Picture.Load(south), Picture.Load(west), Picture.Load(north), Picture.Load(east) });
+        cache.Clear();
+        return r;
+    }
+
     /// <summary>The model at cube size k (k x k x k of the full grid), and its outer faces; kept once made.</summary>
     public (VoxelGrid grid, List<VoxelGrid.Face> faces) AtSize(int k)
     {

@@ -227,6 +227,14 @@ public sealed class VoxelGrid
             }
             report.Add($"{ViewNames[v]}: moved by ({bestDx}, {bestDy}) px, silhouette overlap {best:0.000}, {painted} of {shown} faces painted");
         }
+        Finish(report, "PixelLab");
+        return report;
+    }
+
+    /// <summary>Each cube's colour: the mean of its painted faces; cubes no view painted take the nearest painted colour.</summary>
+    void Finish(List<string> report, string by)
+    {
+        int n = Nx * Ny * Nz;
         for (int k = 0; k < n; k++)
         {
             if (!Repainted[k]) continue;
@@ -235,8 +243,112 @@ public sealed class VoxelGrid
             Col[k] = s / c;
         }
         int filled = FillFromRepainted();
-        report.Add($"{Repainted.Count(b => b)} cubes painted by PixelLab; {filled} unseen cubes (top of the head, soles, inner arms) took the colour of the nearest painted cube");
+        report.Add($"{Repainted.Count(b => b)} cubes painted from {by}; {filled} unseen cubes (top of the head, soles, inner arms) took the colour of the nearest painted cube");
+    }
+
+    // ---------------------------------------------------------------- 3b. the original sprites instead of PixelLab
+
+    /// <summary>
+    /// Paints the cubes straight from the 4 original sprites the model was made from (the ones given to Meshy), in view
+    /// order: [0] south (front), [1] west, [2] north (back), [3] east. The model and the sprite never match pixel for
+    /// pixel (Meshy guesses the 3D shape), so each sprite is first fitted onto its view: scaled so the figure is as tall
+    /// as the view's, centred and set on the same feet line, then the scale (plus or minus 4%) and the shift (up to 6
+    /// sprite pixels) with the best silhouette overlap are kept. Before that, a dark 1 px outline round the sprite's edge
+    /// is taken out (each edge pixel clearly darker than the pixel inside it takes that pixel's colour): seen from the
+    /// front it would sit on the cubes at the edge of the silhouette, and turned 45 degrees it would show as a dark stripe
+    /// along the body. The app's own Outline draws it again, round whatever angle is shown.
+    /// </summary>
+    public List<string> ApplySprites(Picture[] sprites)
+    {
+        var report = new List<string>();
+        int n = Nx * Ny * Nz;
+        FaceCol = new Vector3[6][]; FaceSet = new bool[6][];
+        for (int d = 0; d < 6; d++) { FaceCol[d] = new Vector3[n]; FaceSet[d] = new bool[n]; }
+        Repainted = new bool[n];
+        string[] names = { "south", "west", "north", "east" };
+        for (int v = 0; v < 4; v++)
+        {
+            var sp = sprites[v];
+            int stripped = StripOutline(sp);
+            int[,] view = View(v, out int w);
+            // bounding boxes: the view's cubes and the sprite's opaque pixels
+            int vr0 = int.MaxValue, vr1 = -1, vc0 = int.MaxValue, vc1 = -1;
+            for (int r = 0; r < Ny; r++) for (int c = 0; c < w; c++)
+                if (view[r, c] >= 0) { vr0 = Math.Min(vr0, r); vr1 = Math.Max(vr1, r); vc0 = Math.Min(vc0, c); vc1 = Math.Max(vc1, c); }
+            int sr0 = int.MaxValue, sr1 = -1, sc0 = int.MaxValue, sc1 = -1;
+            for (int y = 0; y < sp.H; y++) for (int x = 0; x < sp.W; x++)
+                if (sp.Data[(y * sp.W + x) * 4 + 3] > 127) { sr0 = Math.Min(sr0, y); sr1 = Math.Max(sr1, y); sc0 = Math.Min(sc0, x); sc1 = Math.Max(sc1, x); }
+            if (vr1 < 0 || sr1 < 0) { report.Add($"{names[v]}: nothing to paint (an empty picture?)"); continue; }
+            float baseScale = (float)(sr1 - sr0 + 1) / (vr1 - vr0 + 1);  // sprite pixels per cube
+            float vcx = (vc0 + vc1 + 1) / 2f, scx = (sc0 + sc1 + 1) / 2f;
+
+            // view cell (r, c) -> sprite pixel, for a scale factor and a shift in sprite pixels
+            (int x, int y) Map(int r, int c, float f, float dx, float dy)
+            {
+                float s = baseScale * f;
+                return ((int)MathF.Floor(scx + (c + 0.5f - vcx) * s + dx), (int)MathF.Floor(sr1 + 1 - (vr1 + 1 - (r + 0.5f)) * s + dy));
+            }
+            bool Opaque((int x, int y) p) => p.x >= 0 && p.y >= 0 && p.x < sp.W && p.y < sp.H && sp.Data[(p.y * sp.W + p.x) * 4 + 3] > 127;
+            float bestF = 1, bestDx = 0, bestDy = 0; double best = -1;
+            for (float f = 0.96f; f <= 1.041f; f += 0.02f)
+                for (float dy = -6; dy <= 6; dy += 1)
+                    for (float dx = -6; dx <= 6; dx += 1)
+                    {
+                        long both = 0, either = 0;
+                        for (int r = 0; r < Ny; r++) for (int c = 0; c < w; c++)
+                        {
+                            bool s = view[r, c] >= 0, p = Opaque(Map(r, c, f, dx, dy));
+                            if (s && p) both++;
+                            if (s || p) either++;
+                        }
+                        double iou = either > 0 ? (double)both / either : 0;
+                        if (iou > best) { best = iou; bestF = f; bestDx = dx; bestDy = dy; }
+                    }
+            int painted = 0, shown = 0, dir = ViewDir[v];
+            for (int r = 0; r < Ny; r++) for (int c = 0; c < w; c++)
+            {
+                int k = view[r, c];
+                if (k < 0) continue;
+                shown++;
+                var p = Map(r, c, bestF, bestDx, bestDy);
+                if (!Opaque(p)) continue;
+                var (cr, cg, cb, _) = sp.Get(p.x, p.y);
+                FaceCol[dir][k] = new Vector3(cr, cg, cb) / 255f; FaceSet[dir][k] = true; Repainted[k] = true; painted++;
+            }
+            report.Add($"{names[v]}: {1 / (baseScale * bestF):0.##} cubes per sprite pixel, shift ({bestDx}, {bestDy}) px, silhouette overlap {best:0.000}, " +
+                       $"{painted} of {shown} faces painted, {stripped} outline pixels taken out");
+        }
+        Finish(report, "the original sprites");
         return report;
+    }
+
+    /// <summary>Takes a dark 1 px outline off a sprite, in place: an opaque pixel next to a transparent one, clearly
+    /// darker (below 70% of the brightness) than an opaque pixel further inside, takes that pixel's colour. A sprite
+    /// drawn without outline is left as it is. Returns how many pixels changed.</summary>
+    static int StripOutline(Picture p)
+    {
+        bool Op(int x, int y) => x >= 0 && y >= 0 && x < p.W && y < p.H && p.Data[(y * p.W + x) * 4 + 3] > 127;
+        float Lum(int x, int y) { int i = (y * p.W + x) * 4; return 0.299f * p.Data[i] + 0.587f * p.Data[i + 1] + 0.114f * p.Data[i + 2]; }
+        bool Edge(int x, int y) => Op(x, y) && (!Op(x - 1, y) || !Op(x + 1, y) || !Op(x, y - 1) || !Op(x, y + 1));
+        var src = (byte[])p.Data.Clone();
+        int changed = 0;
+        for (int y = 0; y < p.H; y++) for (int x = 0; x < p.W; x++)
+        {
+            if (!Edge(x, y)) continue;
+            int bx = -1, by = -1; float bl = -1;
+            for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++)
+            {
+                int ax = x + dx, ay = y + dy;
+                if ((dx == 0 && dy == 0) || !Op(ax, ay) || Edge(ax, ay)) continue;
+                float l = Lum(ax, ay);
+                if (l > bl) { bl = l; bx = ax; by = ay; }
+            }
+            if (bx < 0 || Lum(x, y) >= 0.7f * bl) continue;
+            int i = (y * p.W + x) * 4, j = (by * p.W + bx) * 4;
+            p.Data[i] = src[j]; p.Data[i + 1] = src[j + 1]; p.Data[i + 2] = src[j + 2];
+            changed++;
+        }
+        return changed;
     }
 
     /// <summary>Cubes PixelLab did not paint take the colour of the nearest painted cube, walking cube to cube from all
