@@ -171,6 +171,31 @@ Needs the .NET 8 SDK. Windows:
 glTF, and [SkiaSharp](https://github.com/mono/SkiaSharp) for pictures. The 3D view and the sprites are drawn by a small
 software renderer in the app, so what you see is exactly what you export.
 
+## FAQ
+
+### How do I animate the model? It is a .glb.
+
+The `.glb` Sugar Cube exports is a **still** model: just the coloured cubes, with no skeleton (bones) and no
+animations. To animate it, give it a skeleton. The simplest way is in Blender:
+
+1. **Make the Meshy model animatable.** Take the original Meshy model (the one you made the cubes from) and give it a
+   skeleton: with Meshy's own rigging, with Mixamo, or with your own rig. Add its animations there too (walk, idle and
+   so on).
+2. **Import both into Blender:** the rigged Meshy model and the Sugar Cube `.glb`. The cubes should sit exactly on the
+   Meshy model, because Sugar Cube keeps the original model's positions. (If you used *Turn 90°* in Sugar Cube, turn
+   the cubes the same way in Blender.)
+3. **Tie the cubes to the skeleton:** select the cubes, then the skeleton, and press **Ctrl+P > With Automatic
+   Weights**. A better way: add a **Data Transfer** modifier to the cubes that copies the weights (*Vertex Groups*) from
+   the Meshy model, then an **Armature** modifier.
+4. **Hide the Meshy model.** The cubes now move with its animations. Export again as `.glb`, with the skeleton and the
+   animations.
+
+Tip: if each cube corner follows several bones, the cubes bend at the joints and stop looking like cubes. To keep
+them straight, let each one follow a single bone: in Weight Paint, **Weights > Limit Total** with a limit of 1. Whole
+pieces then move together, like a jointed puppet.
+
+These Blender steps have not been tried on a Sugar Cube model yet.
+
 ## License
 
 [MIT](LICENSE). The libraries it uses keep their own licences (Avalonia, SharpGLTF and SkiaSharp are MIT too).
