@@ -42,6 +42,7 @@ public sealed class MainWindow : Window
     readonly ToggleSwitch litSwitch = new() { OnContent = "Lighting", OffContent = "Flat colours (sprite look)", IsChecked = false };
     readonly CheckBox eightBox = new() { Content = "8 directions (otherwise 4)", IsChecked = true };
     readonly Button glbBtn = Secondary("Export .glb…");
+    readonly Button voxBtn = Secondary("Export .vox for MagicaVoxel…");
     readonly Button spritesBtn = Secondary("Export sprites…");
     readonly Button turnBtn = Secondary("Turn 90°");
     readonly Button openBtn = Primary("Open model (.glb)…");
@@ -103,7 +104,8 @@ public sealed class MainWindow : Window
         steps.Children.Add(Step("3", "PixelLab", Hint("Save the picture (512 x 512, the 4 views). On pixellab.ai, edit it with the prompt below (about 25 generations), download the result and load it here."),
             canvasBtn, Row(copyBtn, link), PromptBox(), resultBtn, repaintInfo));
         steps.Children.Add(Step("4", "Cube size", sizeLabel, sizeSlider, litSwitch));
-        steps.Children.Add(Step("5", "Export", spriteInfo, eightBox, Row(glbBtn, spritesBtn)));
+        steps.Children.Add(Step("5", "Export", spriteInfo, eightBox, Row(glbBtn, spritesBtn), voxBtn,
+            Hint("The .vox has one colour per cube (at most 255 colours) and the cube size chosen in step 4; above 256 cubes on a side it is cut into a few models that MagicaVoxel shows together.")));
 
         var left = new Border { Width = 400, Background = Bg, Child = new ScrollViewer { Content = steps } };
         viewport = new Border
@@ -134,6 +136,7 @@ public sealed class MainWindow : Window
         sizeSlider.PropertyChanged += async (_, e) => { if (e.Property == Slider.ValueProperty) await ShowSize(); };
         litSwitch.IsCheckedChanged += (_, _) => Redraw();
         glbBtn.Click += async (_, _) => await ExportGlb();
+        voxBtn.Click += async (_, _) => await ExportVox();
         spritesBtn.Click += async (_, _) => await ExportSprites();
         view.PointerPressed += (_, e) => { dragFrom = e.GetPosition(view); if (e.ClickCount == 2) { yaw = 0; pitch = 0.05f; pan = default; SetZoom(1); } };
         view.PointerReleased += (_, _) => dragFrom = null;
@@ -326,7 +329,7 @@ public sealed class MainWindow : Window
         bool model = pipe.Model != null, grid = pipe.Grid != null;
         turnBtn.IsEnabled = model; cubesSlider.IsEnabled = model; voxelizeBtn.IsEnabled = model;
         canvasBtn.IsEnabled = grid && pipe.Grid.FitsCanvas; resultBtn.IsEnabled = grid && pipe.Grid.FitsCanvas;
-        sizeSlider.IsEnabled = grid; glbBtn.IsEnabled = grid; spritesBtn.IsEnabled = grid;
+        sizeSlider.IsEnabled = grid; glbBtn.IsEnabled = grid; spritesBtn.IsEnabled = grid; voxBtn.IsEnabled = grid;
     }
 
     void UpdateCubesLabel()
@@ -412,6 +415,15 @@ public sealed class MainWindow : Window
         shownGrid = g; shownFaces = faces;
         sizeLabel.Text = $"{g.Cube * 100:0.##} cm cubes · {g.Count:N0} cubes · {g.Ny} tall";
         Redraw();
+    }
+
+    async Task ExportVox()
+    {
+        var path = await PickSave("Export .vox for MagicaVoxel", Path.GetFileNameWithoutExtension(pipe.ModelPath) + $"_cubes_{shownGrid.Ny}.vox", "*.vox");
+        if (path == null) return;
+        var g = shownGrid;
+        var (models, colours) = await Task.Run(() => VoxExport.Write(g, path));
+        Say($"Saved: {path} ({g.Count:N0} cubes, {colours} colours, {models} model{(models == 1 ? "" : "s")}). Open it in MagicaVoxel.");
     }
 
     async Task ExportGlb()

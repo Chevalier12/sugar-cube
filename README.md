@@ -6,7 +6,8 @@
 
 Sugar Cube takes a textured 3D model (for example one made by Meshy from your PixelLab sprite), turns it into cubes,
 hands four views of those cubes to PixelLab to repaint as real pixel art, and puts every painted pixel back onto the
-cube it came from. Then you pick the cube size with a slider and export a `.glb` or a sprite sheet in 8 directions.
+cube it came from. Then you pick the cube size with a slider and export a `.glb`, a MagicaVoxel `.vox` or a sprite
+sheet in 8 directions.
 
 ![The 8 sprites Sugar Cube exported: 465 cubes tall, cube size one step up, zoomed out to 25%, outline on, no lighting](docs/sprites.png)
 
@@ -119,6 +120,10 @@ anyone can do it.
    sprite-like pictures. It also writes a one-row sprite sheet and a `.txt` with the order and the scale. The sprites
    above were made with 465 cubes, the cube-size slider one step from the left, the view at 25%, outline on and
    lighting off.
+   *.vox for MagicaVoxel* writes the cubes at the chosen size for editing and cleaning in
+   [MagicaVoxel](https://ephtracy.github.io/): one colour per cube, at most 255 colours (MagicaVoxel's limit, reached by
+   median cut). MagicaVoxel models stop at 256 cubes per side, so a taller figure (465 cubes, for example) is cut into
+   blocks of 256 that the file places side by side, and MagicaVoxel shows them together as one figure.
 
 Above the 3D view: zoom (with the percent), the camera's angle round the model (with the PixelLab direction it shows)
 and its tilt, slow turning with a speed, a 1 px outline (also used by the sprite export), and the background colour.
@@ -130,7 +135,7 @@ and its tilt, slow turning with a speed, a 1 px outline (also used by the sprite
 Every step also runs without the window, for tests and batches:
 
     SugarCube --model M.glb [--turn 1] [--cubes 465] [--canvas OUT.png] [--result PIXELLAB.png] [--size 4]
-              [--glb OUT.glb] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--shot WINDOW.png]
+              [--glb OUT.glb] [--vox OUT.vox] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--shot WINDOW.png]
 
 ## Build
 

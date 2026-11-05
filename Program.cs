@@ -7,7 +7,7 @@ namespace SugarCube;
 /// size, .glb and sprites. Without arguments it opens the window. With --model it can also run the steps from the
 /// command line (for tests and batches):
 ///   SugarCube --model M.glb [--turn 1] [--cubes 470] [--canvas OUT.png] [--result PIXELLAB.png] [--size 4]
-///               [--glb OUT.glb] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--shot WINDOW.png]
+///               [--glb OUT.glb] [--vox OUT.vox] [--sprites FOLDER] [--sprite-height PX] [--four] [--lit] [--outline] [--shot WINDOW.png]
 /// --shot opens the window with those steps done, saves a picture of it and closes.</summary>
 public static class Program
 {
@@ -53,6 +53,7 @@ public static class Program
             t.Restart();
             var (g, faces) = p.AtSize(k);
             Console.WriteLine($"size k={k}: {g.Cube * 100:0.##} cm cubes, {g.Count} cubes, {faces.Count} outer faces ({t.ElapsedMilliseconds} ms)");
+            if (Arg("--vox") is string vox) { var (vm, vc) = VoxExport.Write(g, vox); Console.WriteLine($"vox: {vox} ({new FileInfo(vox).Length / 1024} KB, {vm} models, {vc} colours)"); }
             if (Arg("--glb") is string glb) { Export.Glb(faces, glb); Console.WriteLine($"glb: {glb} ({new FileInfo(glb).Length / 1024} KB)"); }
             if (Arg("--sprites") is string dir)
             {
