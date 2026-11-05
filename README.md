@@ -10,6 +10,11 @@ cube it came from. Then you pick the cube size with a slider and export a `.glb`
 
 ![The 8 sprites Sugar Cube exported, one cube per pixel, with the outline on](docs/sprites.png)
 
+> **Sprite or voxel: it depends on the zoom.** The model looks like a sprite when you zoom out until it is about the
+> size of the original sprite on screen, so that one cube is roughly one screen pixel. The closer you zoom in, the more
+> each cube shows as a cube and the more it looks like a voxel model. That is not a problem if a voxel look is what you
+> want; for the sprite look, keep the camera far enough away (or export sprites, which are always one cube per pixel).
+
 > **Tested only with humanoid characters so far.** Everything here was made and checked on standing human figures.
 > What it does with an animal or an object (a sword, a chair, a table) is not known yet: it may work, or the four side
 > views may not be the right ones to paint.
