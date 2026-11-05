@@ -124,10 +124,12 @@ anyone can do it.
    picture does not cover take the colour of their neighbours.
 4. **Cube size.** A slider merges the cubes 2 x 2 x 2, 3 x 3 x 3 and so on up to 20 x 20 x 20, live.
 5. **Export.** *.glb* writes the cubes at the chosen size (one colour per face). *Sprites* writes 8 (or 4) pictures
-   drawn exactly as the 3D view shows the model at that moment, so the zoom sets their size: zoom out for small,
-   sprite-like pictures. It also writes a one-row sprite sheet and a `.txt` with the order and the scale. The sprites
-   above were made with 465 cubes, the cube-size slider one step from the left, the view at 25%, outline on and
-   lighting off.
+   and a one-row sprite sheet, at the **sprite height** you type in pixels. After step 3 the app proposes the height of
+   the pictures that painted the cubes (your original sprites, or the figure on the PixelLab picture), so by default the
+   sprites come out as big as the drawing you started from. The card also says how big one cube must be on screen for
+   the same look in a game. **Pixel preview**, above the view, shows the model at exactly that size from the camera's
+   angle, enlarged by a whole number so every pixel stays square; the view's zoom is only for looking. The sprites
+   above were made with 465 cubes, the cube-size slider one step from the left, outline on and lighting off.
    *.vox for MagicaVoxel* writes the cubes at the chosen size for editing and cleaning in
    [MagicaVoxel](https://ephtracy.github.io/): one colour per cube, at most 255 colours (MagicaVoxel's limit, reached by
    median cut). MagicaVoxel models stop at 256 cubes per side, so a taller figure (465 cubes, for example) is cut into

@@ -140,7 +140,7 @@ public static class Render
     public static Picture Sprite(IReadOnlyList<VoxelGrid.Face> faces, float pixel, Vector3 from, bool lit, bool outline = false, float toon = 0)
     {
         from = Vector3.Normalize(from);
-        Vector3 fwd = -from, right = Vector3.Normalize(Vector3.Cross(fwd, Vector3.UnitY)), up = Vector3.UnitY;
+        Vector3 fwd = -from, right = Vector3.Normalize(Vector3.Cross(fwd, Vector3.UnitY)), up = Vector3.Normalize(Vector3.Cross(right, fwd));
         float minR = float.MaxValue, maxR = float.MinValue, minU = float.MaxValue, maxU = float.MinValue;
         foreach (var fc in faces)
             foreach (var p in new[] { fc.P0, fc.P1, fc.P2, fc.P3 })

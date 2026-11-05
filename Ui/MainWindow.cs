@@ -75,6 +75,9 @@ public sealed class MainWindow : Window
     readonly Button originalOk = Primary("OK");
     readonly Button originalCancel = Secondary("Cancel");
     int viewHeightPx = 600;
+    readonly NumericUpDown spriteHeightBox = new() { Minimum = 8, Maximum = 2048, Increment = 1, Value = 128, FormatString = "0", Width = 130 };
+    readonly TextBlock spriteHeightHint = new() { Foreground = new SolidColorBrush(Color.Parse("#9AA3B5")), TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+    readonly ToggleButton pixelBtn = new() { Content = "Pixel preview", Padding = new Thickness(10, 4) };
     readonly TextBlock spriteInfo = new() { Foreground = new SolidColorBrush(Color.Parse("#9AA3B5")), TextWrapping = TextWrapping.Wrap, FontSize = 13 };
     readonly CheckBox outlineBox = new() { Content = "Outline", IsChecked = false, VerticalAlignment = VerticalAlignment.Center };
     readonly Slider toonSlider = new() { Minimum = 0, Maximum = 100, Value = 0, Width = 110, VerticalAlignment = VerticalAlignment.Center };
@@ -115,7 +118,10 @@ public sealed class MainWindow : Window
         steps.Children.Add(Step("3", "PixelLab", Hint("Save the picture (512 x 512, the 4 views). On pixellab.ai, edit it with the prompt below (about 25 generations), download the result and load it here."),
             canvasBtn, Row(copyBtn, link), PromptBox(), resultBtn, originalBox, OriginalPanel(), repaintInfo));
         steps.Children.Add(Step("4", "Cube size", sizeLabel, sizeSlider, litSwitch));
-        steps.Children.Add(Step("5", "Export", spriteInfo, eightBox, Row(glbBtn, spritesBtn), voxBtn,
+        var heightRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        heightRow.Children.Add(new TextBlock { Text = "Sprite height (px)", VerticalAlignment = VerticalAlignment.Center, FontSize = 13 });
+        heightRow.Children.Add(spriteHeightBox);
+        steps.Children.Add(Step("5", "Export", heightRow, spriteHeightHint, spriteInfo, eightBox, Row(glbBtn, spritesBtn), voxBtn,
             Hint("The .vox has one colour per cube (at most 255 colours) and the cube size chosen in step 4; above 256 cubes on a side it is cut into a few models that MagicaVoxel shows together.")));
 
         var left = new Border { Width = 400, Background = Bg, Child = stepsScroll = new ScrollViewer { Content = steps } };
@@ -171,6 +177,8 @@ public sealed class MainWindow : Window
         angleSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty && !syncingAngle) { yaw = (float)(angleSlider.Value * Math.PI / 180); Redraw(); } };
         tiltSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty && !syncingAngle) { pitch = (float)(tiltSlider.Value * Math.PI / 180); Redraw(); } };
         outlineBox.IsCheckedChanged += (_, _) => Redraw();
+        pixelBtn.IsCheckedChanged += (_, _) => { SetZoom(zoom); };
+        spriteHeightBox.ValueChanged += (_, _) => Redraw();
         toonSlider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) { toonLabel.Text = toonSlider.Value < 0.5 ? "off" : $"{toonSlider.Value:0}%"; Redraw(); } };
         bgHex.LostFocus += (_, _) => ApplyHex();
         bgHex.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyHex(); };
@@ -199,6 +207,7 @@ public sealed class MainWindow : Window
         Group(new TextBlock { Text = "Zoom", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }, zoomOut, zoomLabel, zoomIn);
         Group(new TextBlock { Text = "Angle", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }, angleSlider, angleLabel,
               new TextBlock { Text = "Tilt", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }, tiltSlider, tiltLabel);
+        Group(pixelBtn);
         Group(outlineBox, new TextBlock { Text = "Toon", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13, Margin = new Thickness(10, 0, 0, 0) }, toonSlider, toonLabel);
         Group(spinBtn, new TextBlock { Text = "Speed", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }, spinSpeed, spinLabel);
         var swatches = new List<Control> { new TextBlock { Text = "Background", Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 } };
@@ -248,6 +257,20 @@ public sealed class MainWindow : Window
 
     /// <summary>Metres per screen pixel at the model's centre in the 3D view right now: sprites are drawn at this scale,
     /// so they look like the view (zoom out to make them smaller and more sprite-like).</summary>
+    int SpriteHeight => (int)(spriteHeightBox.Value ?? 128);
+
+    /// <summary>Metres per sprite pixel so the model is exactly the chosen sprite height.</summary>
+    float ExportPixel(VoxelGrid g) => g.Ny * g.Cube / SpriteHeight;
+
+    /// <summary>Proposes a sprite height: the original sprites' height after step 3, otherwise 128 px.</summary>
+    void ProposeSpriteHeight()
+    {
+        spriteHeightBox.Value = pipe.ProposedSpriteHeight;
+        spriteHeightHint.Text = pipe.Grid?.SourceHeight > 0
+            ? $"Proposed: {pipe.ProposedSpriteHeight} px, the height of the figure in the pictures that painted the cubes. Change it if you like."
+            : "Proposed: 128 px. After step 3 it becomes the height of your sprites.";
+    }
+
     float ViewPixel()
     {
         if (shownGrid == null) return 0.01f;
@@ -258,15 +281,18 @@ public sealed class MainWindow : Window
     void ShowSpriteInfo()
     {
         if (shownGrid == null) { spriteInfo.Text = ""; return; }
-        float px = ViewPixel(), tall = shownGrid.Ny * shownGrid.Cube / px;
-        spriteInfo.Text = $"Sprites are drawn as the view shows the model now: about {tall:0} px tall ({px / shownGrid.Cube:0.#} cubes per pixel). Zoom out for smaller, more sprite-like sprites.";
+        int tall = SpriteHeight;
+        float cubesPerPixel = shownGrid.Ny / (float)tall;
+        spriteInfo.Text = $"Sprites will be {tall} px tall: one sprite pixel covers {cubesPerPixel:0.##} cubes of this size. " +
+            $"In a game, show the model {tall} px tall on screen (one cube = {1 / cubesPerPixel:0.###} screen px) to get the same look. " +
+            "Pixel preview (above the view) shows exactly this.";
     }
 
     /// <summary>Zoom is how far the camera is (1 = the model fills the view); shown as a percent, 100% / distance.</summary>
     void SetZoom(float z)
     {
         zoom = Math.Clamp(z, 0.15f, 4f);
-        zoomLabel.Text = $"{100 / zoom:0}%";
+        zoomLabel.Text = pixelBtn.IsChecked == true ? "pixels" : $"{100 / zoom:0}%";
         Redraw();
     }
 
@@ -350,6 +376,7 @@ public sealed class MainWindow : Window
         try { report = await Task.Run(() => pipe.ApplySprites(p0[0], p0[1], p0[2], p0[3])); }
         catch (Exception e) { Say("Could not use the sprites: " + e.Message); return; }
         repaintInfo.Text = string.Join("\n", report);
+        ProposeSpriteHeight();
         await ShowSize();
         Say("Done: the cubes have the colours of your original sprites. Move the size slider or export.");
     }
@@ -464,6 +491,7 @@ public sealed class MainWindow : Window
         await Task.Run(() => pipe.Voxelize(n, s => Dispatcher.UIThread.Post(() => Say(s))));
         repaintInfo.Text = "";
         sizeSlider.Value = 0;
+        ProposeSpriteHeight();
         await ShowSize();
         var g = pipe.Grid;
         Say($"{g.Count:N0} cubes ({g.Nx} x {g.Ny} x {g.Nz}), {g.Cube * 100:0.##} cm each, in {t.ElapsedMilliseconds / 1000.0:0.0} s." +
@@ -487,6 +515,7 @@ public sealed class MainWindow : Window
         try { report = await Task.Run(() => pipe.ApplyRepaint(path)); }
         catch (Exception e) { Say("Could not use the picture: " + e.Message); return; }
         repaintInfo.Text = string.Join("\n", report);
+        ProposeSpriteHeight();
         await ShowSize();
         Say("Done: the model has the PixelLab colours. Move the size slider or export.");
     }
@@ -527,10 +556,10 @@ public sealed class MainWindow : Window
         var (g, faces) = (shownGrid, shownFaces);
         bool eight = eightBox.IsChecked == true, lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true;
         string name = Path.GetFileNameWithoutExtension(pipe.ModelPath) + $"_{g.Ny}";
-        float pixel = ViewPixel();
+        float pixel = ExportPixel(g);
         float toonAmount = (float)toonSlider.Value / 100;
         string sheet = await Task.Run(() => Export.Sprites(faces, pixel, g.Cube, folder, name, eight, lit, outline, toonAmount));
-        Say($"Saved: {(eight ? 8 : 4)} sprites, {g.Ny * g.Cube / pixel:0} px tall as in the view, and the sprite sheet {sheet}.");
+        Say($"Saved: {(eight ? 8 : 4)} sprites, {g.Ny * g.Cube / pixel:0} px tall, and the sprite sheet {sheet}.");
     }
 
     // ---------------------------------------------------------------- files
@@ -583,8 +612,40 @@ public sealed class MainWindow : Window
         viewHeightPx = h;
         var faces = shownFaces; var g = shownGrid; bool lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true; var bg = viewBg; float toon = (float)toonSlider.Value / 100;
         float y = yaw, p = pitch, z = zoom;
+        bool pixelView = pixelBtn.IsChecked == true; float spritePixel = ExportPixel(g);
         Task.Run(() =>
         {
+            if (pixelView)
+            {
+                // the sprite at the export size from the camera's side, enlarged by a whole number so each pixel stays square
+                var from = new Vector3(MathF.Sin(y) * MathF.Cos(p), MathF.Sin(p), MathF.Cos(y) * MathF.Cos(p));
+                var sp = Core.Render.Sprite(faces, spritePixel, from, lit, outline, toon);
+                int k = Math.Max(1, Math.Min((int)(w * 0.92f / sp.W), (int)(h * 0.92f / sp.H)));
+                var pv = new Picture(w, h);
+                for (int i = 0; i < w * h; i++) { pv.Data[i * 4] = bg.R; pv.Data[i * 4 + 1] = bg.G; pv.Data[i * 4 + 2] = bg.B; pv.Data[i * 4 + 3] = 255; }
+                int ox = (w - sp.W * k) / 2, oy = (h - sp.H * k) / 2;
+                for (int sy = 0; sy < sp.H; sy++) for (int sx = 0; sx < sp.W; sx++)
+                {
+                    int si = (sy * sp.W + sx) * 4;
+                    if (sp.Data[si + 3] == 0) continue;
+                    for (int yy = 0; yy < k; yy++) for (int xx = 0; xx < k; xx++)
+                    {
+                        int px = ox + sx * k + xx, py = oy + sy * k + yy;
+                        if (px < 0 || py < 0 || px >= w || py >= h) continue;
+                        Buffer.BlockCopy(sp.Data, si, pv.Data, (py * w + px) * 4, 4);
+                    }
+                }
+                Dispatcher.UIThread.Post(() =>
+                {
+                    zoomLabel.Text = $"×{k}";
+                    var pb = new WriteableBitmap(new PixelSize(w, h), new Avalonia.Vector(96, 96), PixelFormat.Rgba8888, AlphaFormat.Unpremul);
+                    using (var fb = pb.Lock()) System.Runtime.InteropServices.Marshal.Copy(pv.Data, 0, fb.Address, pv.Data.Length);
+                    view.Source = pb;
+                    rendering = false;
+                    if (renderAgain) { renderAgain = false; Redraw(); }
+                });
+                return;
+            }
             Vector3 lo = g.Origin, hi = g.Origin + new Vector3(g.Nx, g.Ny, g.Nz) * g.Cube, c = (lo + hi) / 2;
             float size = (hi - lo).Y;
             float dist = size * 1.9f * z;
@@ -621,6 +682,7 @@ public sealed class MainWindow : Window
         if (Program.Arg("--zoom") is string zArg) SetZoom(float.Parse(zArg, System.Globalization.CultureInfo.InvariantCulture));
         if (Program.Flag("--spin")) spinBtn.IsChecked = true;
         if (Program.Flag("--outline")) outlineBox.IsChecked = true;
+        if (Program.Flag("--pixel")) pixelBtn.IsChecked = true;
         if (Program.Arg("--south") is string so && Program.Arg("--west") is string we && Program.Arg("--north") is string no && Program.Arg("--east") is string ea)
         {
             originalBox.IsChecked = true;
@@ -632,7 +694,8 @@ public sealed class MainWindow : Window
         {
             await Task.Delay(800);  // let the view take its size: the sprites use its scale
             var (eg, ef) = (shownGrid, shownFaces);
-            float pixel = ViewPixel();
+            if (Program.Arg("--sprite-height") is string shArg) spriteHeightBox.Value = decimal.Parse(shArg, System.Globalization.CultureInfo.InvariantCulture);
+            float pixel = ExportPixel(eg);
             bool eight = eightBox.IsChecked == true, lit = litSwitch.IsChecked == true, outline = outlineBox.IsChecked == true;  // read on the UI thread
             float toonAmount = (float)toonSlider.Value / 100;
             string sheet = await Task.Run(() => Export.Sprites(ef, pixel, eg.Cube, exDir, Path.GetFileNameWithoutExtension(pipe.ModelPath), eight, lit, outline, toonAmount));
@@ -652,6 +715,12 @@ public sealed class MainWindow : Window
                 using var crt = new RenderTargetBitmap(new PixelSize((int)card.Bounds.Width, (int)card.Bounds.Height));
                 crt.Render(card);
                 crt.Save(Path.ChangeExtension(shot, null) + "_step3.png");
+            }
+            if (spriteHeightBox.Parent?.Parent?.Parent is Control exportCard && exportCard.Bounds.Width > 0)  // step 5's card alone
+            {
+                using var ert = new RenderTargetBitmap(new PixelSize((int)exportCard.Bounds.Width, (int)exportCard.Bounds.Height));
+                ert.Render(exportCard);
+                ert.Save(Path.ChangeExtension(shot, null) + "_step5.png");
             }
             Close();
         }

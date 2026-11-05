@@ -19,6 +19,8 @@ public sealed class Pipeline
     public ModelImport.Result Model;
     public VoxelGrid Grid;        // full resolution, repainted when Repainted is true
     public bool IsRepainted => Grid?.Repainted != null;
+    /// <summary>The sprite height to propose: the height of the pictures that painted the cubes, else 128 px.</summary>
+    public int ProposedSpriteHeight => Grid?.SourceHeight > 0 ? Grid.SourceHeight : 128;
     readonly Dictionary<int, (VoxelGrid grid, List<VoxelGrid.Face> faces)> cache = new();
 
     public void LoadModel(string path)

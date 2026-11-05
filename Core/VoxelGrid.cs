@@ -23,6 +23,7 @@ public sealed class VoxelGrid
     public Vector3[][] FaceCol;  // [direction][cube] sRGB; null on grids not repainted
     public bool[][] FaceSet;     // [direction][cube] the face colour is set
     public bool[] Repainted;     // the cube got a colour from PixelLab
+    public int SourceHeight;     // how tall the figure was in the pictures that painted it (px), 0 = not painted
 
     // directions: 0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z
     public static readonly (int X, int Y, int Z)[] Dir = { (1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1) };
@@ -227,6 +228,7 @@ public sealed class VoxelGrid
             }
             report.Add($"{ViewNames[v]}: moved by ({bestDx}, {bestDy}) px, silhouette overlap {best:0.000}, {painted} of {shown} faces painted");
         }
+        SourceHeight = Ny;  // on the PixelLab picture one cube is one pixel
         Finish(report, "PixelLab");
         return report;
     }
@@ -266,6 +268,7 @@ public sealed class VoxelGrid
         for (int d = 0; d < 6; d++) { FaceCol[d] = new Vector3[n]; FaceSet[d] = new bool[n]; }
         Repainted = new bool[n];
         string[] names = { "south", "west", "north", "east" };
+        var heights = new List<int>();
         for (int v = 0; v < 4; v++)
         {
             var sp = sprites[v];
@@ -279,6 +282,7 @@ public sealed class VoxelGrid
             for (int y = 0; y < sp.H; y++) for (int x = 0; x < sp.W; x++)
                 if (sp.Data[(y * sp.W + x) * 4 + 3] > 127) { sr0 = Math.Min(sr0, y); sr1 = Math.Max(sr1, y); sc0 = Math.Min(sc0, x); sc1 = Math.Max(sc1, x); }
             if (vr1 < 0 || sr1 < 0) { report.Add($"{names[v]}: nothing to paint (an empty picture?)"); continue; }
+            heights.Add(sr1 - sr0 + 1);
             float baseScale = (float)(sr1 - sr0 + 1) / (vr1 - vr0 + 1);  // sprite pixels per cube
             float vcx = (vc0 + vc1 + 1) / 2f, scx = (sc0 + sc1 + 1) / 2f;
 
@@ -318,6 +322,7 @@ public sealed class VoxelGrid
             report.Add($"{names[v]}: {1 / (baseScale * bestF):0.##} cubes per sprite pixel, shift ({bestDx}, {bestDy}) px, silhouette overlap {best:0.000}, " +
                        $"{painted} of {shown} faces painted, {stripped} outline pixels taken out");
         }
+        SourceHeight = heights.Count > 0 ? (int)Math.Round(heights.Average()) : 0;
         Finish(report, "the original sprites");
         return report;
     }
